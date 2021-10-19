@@ -108,3 +108,50 @@ dynamite_df =
 ```
 
 This only gets us the one page of reviews. Will revisit this issue later. 
+
+
+## Moving on to APIs
+
+Get the data from the NYC API @ water
+
+```{r}
+water_df = 
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.csv") %>% 
+  content()
+```
+
+Let's see what JSON looks like
+
+```{r}
+water_df = 
+  GET("https://data.cityofnewyork.us/resource/ia2d-e54m.json") %>% 
+  content("text") %>% 
+  jsonlite::fromJSON() %>% 
+  as_tibble()
+```
+
+BRFSS data via API
+
+```{r}
+brfss_df = 
+  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv") %>% 
+  content()
+
+brfss_df = 
+  GET("https://chronicdata.cdc.gov/resource/acme-vg9e.csv",
+      query = list("$limit" = 5000)) %>% 
+  content()
+```
+
+Pokemon has an API
+
+```{r}
+poke_data = 
+  GET("https://pokeapi.co/api/v2/pokemon/1") %>% 
+  content()
+  
+poke_data[["name"]]
+poke_data[["height"]]
+poke_data[["abilities"]]
+```
+
