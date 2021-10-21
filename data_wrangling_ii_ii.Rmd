@@ -1,0 +1,277 @@
+---
+title: "Data Wrangling II:Strings and Factors"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(httr)
+library(p8105.datasets)
+
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+## String Vectors
+
+```{r}
+string_vec = c("my", "name", "is", "jeff")
+
+str_detect(string_vec, "m")
+str_detect(string_vec, "jeff")
+str_detect(string_vec, "Jeff")
+```
+
+Strings are case-sensitive!
+
+```{r}
+str_replace(string_vec, "jeff", "Jeff")
+
+str_replace(string_vec, "jeff", "")
+```
+
+
+```{r}
+string_vec = c(
+  "i think we all rule for participating",
+  "i think i have been caught",
+  "i think this will be quite fun actually",
+  "it will be fun, i think"
+  )
+
+str_detect(string_vec, "i think")
+
+str_detect(string_vec, "^i think")
+# ^ for "starts with"
+
+str_detect(string_vec, "i think$")
+# $ for "ends with"
+```
+
+
+```{r}
+string_vec = c(
+  "Y'all remember Pres. HW Bush?",
+  "I saw a green bush",
+  "BBQ and Bushwalking at Molonglo Gorge",
+  "BUSH -- LIVE IN CONCERT!!"
+  )
+
+str_detect(string_vec, "bush")
+
+str_detect(string_vec, "Bush")
+
+# For upper and lowercase:
+str_detect(string_vec,"[Bb]ush")
+```
+
+
+```{r}
+string_vec = c(
+  '7th inning stretch',
+  '1st half soon to begin. Texas won the toss.',
+  'she is 5 feet 4 inches tall',
+  '3AM - cant sleep :('
+  )
+
+# Want a range of values?
+str_detect(string_vec, "[0-9][a-zA-Z]")
+```
+
+
+The character . matches anything
+
+```{r}
+string_vec = c(
+  'Its 7:11 in the evening',
+  'want to go to 7-11?',
+  'my flight is AA711',
+  'NetBios: scanning ip 203.167.114.66'
+  )
+
+str_detect(string_vec, "7.11")
+```
+
+R reads that as "7 [anything] 11"
+
+```{r}
+string_vec = c(
+  'The CI is [2, 5]',
+  ':-]',
+  ':-[',
+  'I found the answer on pages [6-7]'
+  )
+
+#str_detect(string_vec, "[")
+# This doesn't work! Because "[" a special character. 
+
+str_detect(string_vec, "\\[")
+#Need 2 \\ because \ is ALSO a special character
+
+```
+
+## Factors are weird
+
+```{r}
+factor_vec = factor(c("male", "male", "female", "female"))
+
+as.numeric(factor_vec)
+
+factor_vec = fct_relevel(factor_vec, "male")
+
+as.numeric(factor_vec)
+```
+
+## NSDUH
+
+```{r}
+nsduh_url = "http://samhda.s3-us-gov-west-1.amazonaws.com/s3fs-public/field-uploads/2k15StateFiles/NSDUHsaeShortTermCHG2015.htm"
+
+table_marj = 
+  read_html(nsduh_url) %>% 
+  html_table() %>% 
+  first() %>%
+  slice(-1)
+```
+
+This data is not tidy. Lets clean it.
+
+```{r}
+marj_df = 
+  table_marj %>% 
+  select(-contains("P Value")) %>% 
+  pivot_longer(
+    -State,
+    names_to = "age_year",
+    values_to = "percent"
+  ) %>% 
+  separate(age_year, into = c("age", "year"), "\\(") %>%
+  mutate(
+    year = str_replace(year, "\\)", ""),
+    percent = str_replace(percent, "[a-c]$", ""),
+    percent = as.numeric(percent)
+    ) %>% 
+  filter(!State %in% c("Total U.S.", "Northeast", "Midwest", "South", "West"))
+  
+```
+
+Do dataframe stuff
+
+```{r}
+marj_df %>% 
+  filter(age == "12-17") %>% 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point()
+```
+
+```{r}
+marj_df %>% 
+  filter(age == "12-17") %>% 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r}
+marj_df %>% 
+  filter(age == "12-17") %>% 
+  mutate(
+    State = fct_reorder(State, percent)
+  ) %>% 
+  ggplot(aes(x = State, y = percent, color = year)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+## Restraunt Inspections
+
+```{r}
+data("rest_inspec")
+```
+
+
+```{r}
+rest_inspec %>% 
+  group_by(boro, grade) %>% 
+  summarise(count = n())
+
+rest_inspec %>% 
+  janitor::tabyl(boro, grade)
+```
+
+```{r}
+rest_inspec =
+rest_inspec %>% 
+  filter(
+    str_detect(grade, "[ABC]"),
+    !(boro == "Missing")
+  ) %>% 
+  mutate(boro = str_to_title(boro))
+```
+
+Lets find the pizza places
+
+```{r}
+rest_inspec %>% 
+  filter(str_detect(dba, "Pizza")) %>% 
+  janitor::tabyl(boro, grade)
+
+#but this misses all the places titled "PIZZA" (most of them)
+
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>% 
+  janitor::tabyl(boro, grade)
+```
+
+```{r}
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>%
+  mutate(
+    boro = fct_infreq(boro)
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar() 
+```
+
+What about changing a label?
+
+```{r}
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>%
+  mutate(
+    boro = fct_infreq(boro),
+    boro = str_replace(boro, "Manhattan", "The City")
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar() 
+```
+
+Messed up order!
+
+```{r}
+rest_inspec %>% 
+  filter(str_detect(dba, "[Pp][Ii][Zz][Zz][Aa]")) %>%
+  mutate(
+    boro = fct_infreq(boro),
+    boro = fct_recode(boro, "The City" = "Manhattan")
+  ) %>% 
+  ggplot(aes(x = boro, fill = grade)) + 
+  geom_bar() 
+```
+
+This worked!
